@@ -1,9 +1,20 @@
-document.addEventListener("DOMContentLoaded", () => {
-    checkLogin();
-    loadTheme();
-});
+// Add Axios to your HTML
+// <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 
-function register() {
+const API_BASE_URL = 'http://localhost:3000/api';
+
+// Helper function to set auth header
+function getAuthHeader() {
+    const token = localStorage.getItem('token');
+    return {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    };
+}
+
+// Modified register function
+async function register() {
     const username = document.getElementById("username").value.trim();
     const password = document.getElementById("password").value.trim();
 
@@ -12,63 +23,51 @@ function register() {
         return;
     }
 
-    let users = JSON.parse(localStorage.getItem("users")) || {};
-    if (users[username]) {
-        alert("User already exists. Try logging in.");
-        return;
+    try {
+        await axios.post(`${API_BASE_URL}/register`, { username, password });
+        alert("Registration successful! You can now log in.");
+    } catch (error) {
+        alert(error.response?.data?.error || "Registration failed");
     }
-
-    users[username] = password;
-    localStorage.setItem("users", JSON.stringify(users));
-    alert("Registration successful! You can now log in.");
 }
 
-// Login Function
-function login() {
+// Modified login function
+async function login() {
     const username = document.getElementById("username").value.trim();
     const password = document.getElementById("password").value.trim();
 
-    let users = JSON.parse(localStorage.getItem("users")) || {};
-    if (users[username] && users[username] === password) {
-        localStorage.setItem("loggedInUser", username);
+    if (!username || !password) {
+        alert("Please fill in all fields.");
+        return;
+    }
+
+    try {
+        const response = await axios.post(`${API_BASE_URL}/login`, { username, password });
+        localStorage.setItem('token', response.data.token);
+        localStorage.setItem('loggedInUser', username);
         checkLogin();
-    } else {
-        alert("Invalid username or password.");
+    } catch (error) {
+        alert(error.response?.data?.error || "Login failed");
     }
 }
 
-
-function checkLogin() {
+// Modified loadExpenses function
+async function loadExpenses() {
     const user = localStorage.getItem("loggedInUser");
-    const authSection = document.getElementById("auth-section");
-    const trackerSection = document.getElementById("tracker-section");
-    const rightSection = document.querySelector(".right-section"); 
+    if (!user) return;
 
-    if (user) {
-        authSection.classList.add("hidden");
-        trackerSection.classList.remove("hidden");
-        rightSection.classList.remove("hidden");
-        loadExpenses();
-    } else {
-        authSection.classList.remove("hidden");
-        trackerSection.classList.add("hidden");
-        rightSection.classList.add("hidden"); 
+    try {
+        const response = await axios.get(`${API_BASE_URL}/expenses`, getAuthHeader());
+        expenses = response.data;
+        renderExpenses();
+    } catch (error) {
+        console.error("Error loading expenses:", error);
+        alert("Failed to load expenses");
     }
 }
 
-function logout() {
-    localStorage.removeItem("loggedInUser");
-    checkLogin(); 
-}
-
-
-const expenseForm = document.getElementById("expense-form");
-const expenseList = document.getElementById("expense-list");
-const totalExpense = document.getElementById("total-expense");
-let expenses = [];
-let editingId = null;
-
-expenseForm.addEventListener("submit", function (e) {
+// Modified expense form submit handler
+expenseForm.addEventListener("submit", async function (e) {
     e.preventDefault();
     
     const user = localStorage.getItem("loggedInUser");
@@ -84,122 +83,83 @@ expenseForm.addEventListener("submit", function (e) {
         return;
     }
 
-    if (editingId) {
-        expenses = expenses.map(expense =>
-            expense.id === editingId ? { id: editingId, name, amount, date, category } : expense
-        );
-        editingId = null;
-        document.getElementById("save-btn").textContent = "Add Expense";
-    } else {
-        const expense = { id: Date.now(), name, amount, date, category };
-        expenses.push(expense);
+    try {
+        if (editingId) {
+            await axios.put(
+                `${API_BASE_URL}/expenses/${editingId}`,
+                { name, amount, date, category },
+                getAuthHeader()
+            );
+            editingId = null;
+            document.getElementById("save-btn").textContent = "Add Expense";
+        } else {
+            await axios.post(
+                `${API_BASE_URL}/expenses`,
+                { name, amount, date, category },
+                getAuthHeader()
+            );
+        }
+        
+        expenseForm.reset();
+        loadExpenses();
+    } catch (error) {
+        alert(error.response?.data?.error || "Failed to save expense");
     }
-    
-    localStorage.setItem(`expenses_${user}`, JSON.stringify(expenses));
-    expenseForm.reset();
-    loadExpenses();
 });
 
-function loadExpenses() {
-    const user = localStorage.getItem("loggedInUser");
-    if (!user) return;
+// Modified deleteExpense function
+async function deleteExpense(id) {
+    if (!confirm("Are you sure you want to delete this expense?")) return;
+    
+    try {
+        await axios.delete(`${API_BASE_URL}/expenses/${id}`, getAuthHeader());
+        loadExpenses();
+    } catch (error) {
+        alert(error.response?.data?.error || "Failed to delete expense");
+    }
+}
 
-    expenses = JSON.parse(localStorage.getItem(`expenses_${user}`)) || [];
-    expenseList.innerHTML = "";
-    let total = 0;
+// Modified logout function
+function logout() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("loggedInUser");
+    checkLogin();
+}
 
-    expenses.forEach(expense => {
-        total += expense.amount;
+// Modified dashboard functions
+async function loadDashboard() {
+    try {
+        const response = await axios.get(`${API_BASE_URL}/dashboard`, getAuthHeader());
+        const data = response.data;
+        
+        // Update summary cards
+        document.getElementById('total-expenses').textContent = `₱${data.totalExpenses.toFixed(2)}`;
+        document.getElementById('monthly-expenses').textContent = `₱${data.monthlyExpenses.toFixed(2)}`;
+        document.getElementById('top-category').textContent = data.topCategory;
+        
+        // Prepare data for charts
+        prepareChartData(data);
+        
+        // Show recent expenses
+        showRecentExpenses(data.recentExpenses);
+    } catch (error) {
+        console.error("Error loading dashboard:", error);
+        alert("Failed to load dashboard data");
+    }
+}
 
-        const row = document.createElement("tr");
-        row.innerHTML = `
-            <td>${expense.name}</td>
-            <td>₱${expense.amount.toFixed(2)}</td>
-            <td>${expense.date}</td>
-            <td>${expense.category}</td>
-            <td>
-                <button class="edit-btn" onclick="editExpense(${expense.id})">Edit</button>
-                <button class="delete-btn" onclick="deleteExpense(${expense.id})">Delete</button>
-            </td>
-        `;
-        expenseList.appendChild(row);
+function prepareChartData(data) {
+    // Category Pie Chart Data
+    const categoryLabels = data.categories.map(item => item.category);
+    const categoryValues = data.categories.map(item => item.total);
+    
+    // Monthly Trend Line Chart Data
+    const monthlyData = Array(12).fill(0);
+    data.monthlyTrend.forEach(item => {
+        monthlyData[item.month - 1] = item.total;
     });
-
-    totalExpense.textContent = `₱${total.toFixed(2)}`;
-}
-
-function deleteExpense(id) {
-    const user = localStorage.getItem("loggedInUser");
-    if (!user) return;
-
-    expenses = expenses.filter(expense => expense.id !== id);
-    localStorage.setItem(`expenses_${user}`, JSON.stringify(expenses));
-    loadExpenses();
-}
-
-function editExpense(id) {
-    const expense = expenses.find(exp => exp.id === id);
-    if (expense) {
-        document.getElementById("expense-name").value = expense.name;
-        document.getElementById("expense-amount").value = expense.amount;
-        document.getElementById("expense-date").value = expense.date;
-        document.getElementById("expense-category").value = expense.category;
-
-        editingId = id;
-        document.getElementById("save-btn").textContent = "Update Expense";
-    }
-}
-
-
-document.getElementById("filter-category").addEventListener("change", loadExpenses);
-
-function loadExpenses() {
-    const user = localStorage.getItem("loggedInUser");
-    if (!user) return;
-
-    expenses = JSON.parse(localStorage.getItem(`expenses_${user}`)) || [];
-    expenseList.innerHTML = "";
-    let total = 0;
-
-    const filterCategory = document.getElementById("filter-category").value;
-
-    expenses
-        .filter(expense => filterCategory === "all" || expense.category === filterCategory)
-        .forEach(expense => {
-            total += expense.amount;
-
-            const row = document.createElement("tr");
-            row.innerHTML = `
-                <td>${expense.name}</td>
-                <td>₱${expense.amount.toFixed(2)}</td>
-                <td>${expense.date}</td>
-                <td>${expense.category}</td>
-                <td>
-                    <button class="edit-btn" onclick="editExpense(${expense.id})">Edit</button>
-                    <button class="delete-btn" onclick="deleteExpense(${expense.id})">Delete</button>
-                </td>
-            `;
-            expenseList.appendChild(row);
-        });
-
-    totalExpense.textContent = `₱${total.toFixed(2)}`;
-}
-
-const darkModeToggle = document.getElementById("dark-mode-toggle");
-
-if (localStorage.getItem("dark-mode") === "enabled") {
-    document.body.classList.add("dark");
-    darkModeToggle.textContent = "☀ Light Mode";
-}
-
-darkModeToggle.addEventListener("click", () => {
-    document.body.classList.toggle("dark");
     
-    if (document.body.classList.contains("dark")) {
-        localStorage.setItem("dark-mode", "enabled");
-        darkModeToggle.textContent = "☀ Light Mode";
-    } else {
-        localStorage.setItem("dark-mode", "disabled");
-        darkModeToggle.textContent = "🌙 Dark Mode";
-    }
-});
+    // Create charts
+    createCategoryChart(categoryLabels, categoryValues);
+    createMonthlyTrendChart(monthlyData);
+}
