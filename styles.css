@@ -120,3 +120,99 @@ body.dark {
 .hidden {
     display: none;
 }
+/* Dashboard Specific Styles */
+.dashboard-container {
+    width: 90%;
+    max-width: 1400px;
+    margin: 20px auto;
+}
+
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #ddd;
+}
+
+.dashboard-controls {
+    display: flex;
+    gap: 10px;
+}
+
+.dashboard-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.summary-card {
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+.summary-card h3 {
+    color: #666;
+    margin-bottom: 10px;
+    font-size: 1.2rem;
+}
+
+.summary-card p {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #007bff;
+}
+
+.dashboard-charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.chart-container {
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    height: 350px;
+}
+
+.recent-expenses {
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Dark mode styles for dashboard */
+.dark .summary-card,
+.dark .chart-container,
+.dark .recent-expenses {
+    background: #1e1e1e;
+    color: #fff;
+}
+
+.dark .summary-card p {
+    color: #4bc0c0;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .dashboard-summary {
+        grid-template-columns: 1fr;
+    }
+    
+    .dashboard-charts {
+        grid-template-columns: 1fr;
+    }
+    
+    .chart-container {
+        height: 300px;
+    }
+}
